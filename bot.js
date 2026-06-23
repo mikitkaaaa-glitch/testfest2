@@ -4,7 +4,7 @@ const multer = require('multer');
 
 // --- НАСТРОЙКИ ---
 const BOT_TOKEN = '8793492212:AAGOd2XwNBzqbdAEgWBhBEBEbOLaQAc80HA'; 
-const WEB_APP_URL = 'https://твой-ник.github.io/my-fest-app/'; 
+const WEB_APP_URL = 'https://mikitkaaaa-glitch.github.io/my-fest-app/'; 
 const ADMIN_CHAT_ID = '-1004395895220'; // Куда бот будет скидывать фотки гостей
 
 const bot = new Telegraf(BOT_TOKEN);
