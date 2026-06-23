@@ -1,54 +1,69 @@
 const { Telegraf } = require('telegraf');
-const http = require('http');
+const express = require('express');
+const multer = require('multer');
 
-// 1. ВСТАВЬ СВОЙ ТОКЕН ОТ BOTFATHER МЕЖДУ КАВЫЧКАМИ
+// --- НАСТРОЙКИ ---
 const BOT_TOKEN = '8793492212:AAGOd2XwNBzqbdAEgWBhBEBEbOLaQAc80HA'; 
-
-// 2. ВСТАВЬ ССЫЛКУ НА ТВОЙ ГИД НА GITHUB PAGES МЕЖДУ КАВЫЧКАМИ
-const WEB_APP_URL = 'https://mikitkaaaa-glitch.github.io/my-fest-app/'; 
+const WEB_APP_URL = 'https://твой-ник.github.io/my-fest-app/'; 
+const ADMIN_CHAT_ID = '-1004395895220'; // Куда бот будет скидывать фотки гостей
 
 const bot = new Telegraf(BOT_TOKEN);
+const app = express();
 
+// Настройка CORS, чтобы твой сайт на GitHub Pages мог делать запросы к Render
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  next();
+});
+
+// Настройка приема файлов в оперативную память
+const upload = multer({ storage: multer.memoryStorage() });
+
+// Приветственное сообщение
 bot.start((ctx) => {
   const userName = ctx.from.first_name || "друг";
-  
-  const welcomeText = `Привет, ${userName}! 👋\n\n` +
-    `Добро пожаловать на *Vulitsa Ezha* — твой главный гастрономический и музыкальный уикенд! 🎪🍔\n\n` +
-    `Я — твой официальный карманный помощник. Внутри этого бота ты найдешь всё для идеальных выходных:\n\n` +
-    `📅 *Актуальное расписание:* Тайминги Главной сцены и все электронные вибрации на сцене MODUL.\n` +
-    `🗺 *Карта локации:* Удобный план, чтобы легко найти фуд-корт, бары и чилл-зоны.\n` +
-    `🎨 *Воркшопы:* Быстрая запись на мастер-классы в один тап.\n` +
-    `📸 *Интерактив:* Делись своими сочными кадрами и видео прямо в приложении!\n\n` +
-    `Чтобы запустить интерактивный гид, просто жми кнопку «Открыть ГИД 🚀» ниже!`;
+  const welcomeText = `Привет, ${userName}! 👋\n\nДобро пожаловать на *Vulitsa Ezha* — твой официальный гид! 🎪\n\nЖми кнопку ниже, чтобы открыть расписание, карту и форму загрузки фото!`;
 
   ctx.replyWithMarkdown(welcomeText, {
     reply_markup: {
-      inline_keyboard: [
-        [
-          { 
-            text: "Открыть ГИД 🚀", 
-            web_app: { url: WEB_APP_URL } 
-          }
-        ]
-      ]
+      inline_keyboard: [[{ text: "Открыть ГИД 🚀", web_app: { url: WEB_APP_URL } }]]
     }
   });
 });
 
-// Запуск бота
-bot.launch()
-  .then(() => console.log('🚀 Бот успешно запущен в облаке!'))
-  .catch((err) => console.error('Ошибка запуска:', err));
+// ЭНДПОИНТ ДЛЯ ПРИЕМА ФОТО ИЗ МИНИ-АППКИ
+app.post('/upload', upload.array('media'), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ success: false, error: 'Файлы не найдены' });
+    }
 
-// Лайфхак для Render: создаем веб-заглушку, чтобы сервер не выдавал ошибку портов
-const server = http.createServer((req, res) => {
-  res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('Bot is running alive!\n');
+    // Перебираем все присланные файлы и пересылаем их тебе в Telegram
+    for (const file of req.files) {
+      const fileBuffer = file.buffer;
+
+      if (file.mimetype.startsWith('image/')) {
+        await bot.telegram.sendPhoto(ADMIN_CHAT_ID, { source: fileBuffer }, { caption: '📸 Новое фото от гостя фестиваля!' });
+      } else if (file.mimetype.startsWith('video/')) {
+        await bot.telegram.sendVideo(ADMIN_CHAT_ID, { source: fileBuffer }, { caption: '🎥 Новое видео от гостя фестиваля!' });
+      }
+    }
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Ошибка отправки медиа:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
 });
 
-// Render автоматически передает нужный порт в переменную process.env.PORT
-server.listen(process.env.PORT || 3000, () => {
-  console.log('Dummy-сервер активен');
+// Запуск бота
+bot.launch().then(() => console.log('🚀 Бот запущен!'));
+
+// Запуск сервера для связи с сайтом
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Сервер принимает файлы на порту ${PORT}`);
 });
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
